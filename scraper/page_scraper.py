@@ -14,8 +14,9 @@ class JobPageScraper:
     def __init__(self):
         self.headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'accept-encoding': 'gzip, deflate, br, zstd',
-            'accept-language': 'az,en-US;q=0.9,en;q=0.8',
+            'accept-encoding': 'gzip, deflate, br',
+            'accept-language': 'az,en-US;q=0.9,en;q=0.8,tr;q=0.7',
+            'accept-charset': 'utf-8, iso-8859-1;q=0.5',
             'cache-control': 'max-age=0',
             'dnt': '1',
             'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
@@ -42,11 +43,16 @@ class JobPageScraper:
             response = self.session.get(job_url)
             response.raise_for_status()
             
-            # Try to handle encoding issues
-            if response.encoding is None:
+            # Handle encoding more robustly
+            if response.encoding is None or response.encoding == 'ISO-8859-1':
                 response.encoding = 'utf-8'
             
-            soup = BeautifulSoup(response.text, 'html.parser')
+            try:
+                # First try with response.text
+                soup = BeautifulSoup(response.text, 'html.parser')
+            except UnicodeDecodeError:
+                # Fallback to content with explicit encoding
+                soup = BeautifulSoup(response.content, 'html.parser', from_encoding='utf-8')
             
             # Extract job details
             job_data = self._extract_job_details(soup, job_url)
