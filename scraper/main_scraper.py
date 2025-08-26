@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class GlorriJobScraper:
-    def __init__(self, max_workers: int = 5):
+    def __init__(self, max_workers: int = 3):
         self.db = DatabaseManager()
         self.api_scraper = APIJobScraper()
         self.page_scraper = JobPageScraper()
@@ -258,6 +258,8 @@ class GlorriJobScraper:
                     
                     if i % 10 == 0:
                         logger.info(f"Scraped {i}/{len(jobs)} job details")
+                        # Add delay every 10 jobs to avoid rate limiting
+                        time.sleep(5)
                         
                 except Exception as e:
                     original_job = future_to_job[future]

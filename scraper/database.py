@@ -219,8 +219,9 @@ class DatabaseManager:
     def mark_scraping_start(self) -> str:
         """Mark the start of a scraping cycle and return timestamp"""
         try:
-            from datetime import datetime
-            scrape_timestamp = datetime.now()
+            from datetime import datetime, timezone
+            # Use UTC to match the database default CURRENT_TIMESTAMP
+            scrape_timestamp = datetime.now(timezone.utc)
             logger.info(f"Marking scraping cycle start: {scrape_timestamp}")
             return scrape_timestamp.isoformat()
         except Exception as e:

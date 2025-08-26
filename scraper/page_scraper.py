@@ -47,7 +47,7 @@ class JobPageScraper:
             # Extract job details
             job_data = self._extract_job_details(soup, job_url)
             
-            time.sleep(1)  # Be respectful to the server
+            time.sleep(3)  # Be more respectful to avoid rate limits
             return job_data
             
         except requests.exceptions.RequestException as e:
