@@ -84,6 +84,10 @@ class JobPageScraper:
                 if title_text and title_text != 'Unknown' and len(title_text) > 2:
                     job_data['title'] = title_text
             
+            # Ensure we always have a title, use job URL as fallback
+            if 'title' not in job_data or not job_data['title']:
+                job_data['title'] = f"Job from {job_url.split('/')[-1]}"
+            
             # Extract company information
             company_link = soup.find('a', href=lambda href: href and '/companies/' in href)
             if company_link:

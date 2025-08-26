@@ -13,9 +13,33 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     def __init__(self):
-        self.connection_string = os.getenv('DATABASE_URL')
-        if not self.connection_string:
-            raise ValueError("DATABASE_URL not found in environment variables")
+        # Prefer individual PG* variables over DATABASE_URL for better control
+        pguser = os.getenv('PGUSER')
+        pgpassword = os.getenv('PGPASSWORD') 
+        pghost = os.getenv('PGHOST')
+        
+        if pguser and pgpassword and pghost:
+            # Use individual environment variables (preferred)
+            self.connection_params = {
+                'user': pguser,
+                'password': pgpassword,
+                'host': pghost,
+                'port': os.getenv('PGPORT', '5432'),
+                'database': os.getenv('PGDATABASE'),
+                'sslmode': os.getenv('PGSSLMODE', 'require')
+            }
+            self.connection_string = None
+            
+            if not all([self.connection_params['user'], self.connection_params['password'], 
+                       self.connection_params['host'], self.connection_params['database']]):
+                raise ValueError("Missing required PG* environment variables")
+        else:
+            # Fallback to DATABASE_URL
+            self.connection_string = os.getenv('DATABASE_URL')
+            self.connection_params = None
+            
+            if not self.connection_string:
+                raise ValueError("DATABASE_URL or individual PG* environment variables not found")
         
         self.conn = None
         self.cursor = None
@@ -25,7 +49,13 @@ class DatabaseManager:
     def connect(self):
         """Connect to PostgreSQL database"""
         try:
-            self.conn = psycopg2.connect(self.connection_string)
+            if self.connection_string:
+                # Use connection string
+                self.conn = psycopg2.connect(self.connection_string)
+            else:
+                # Use individual parameters
+                self.conn = psycopg2.connect(**self.connection_params)
+            
             self.cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
             # Set search path to apply-bot schema
