@@ -1,0 +1,221 @@
+{
+    "totalCount": 90,
+    "entities": [
+        {
+            "title": "Çatdırılma xidmətləri üzrə fəhlə (Saatlı)",
+            "postedDate": "2025-08-19T10:18:29.683Z",
+            "location": "Saatlı, Azərbaycan",
+            "slug": "abc-telecom-catdirilma-xidmetleri-uzre-fehle-saatli-5678",
+            "viewCount": 490,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Çatdırılma xidmətləri üzrə fəhlə (Masallı)",
+            "postedDate": "2025-08-19T10:17:28.951Z",
+            "location": "Masallı, Azərbaycan",
+            "slug": "abc-telecom-catdirilma-xidmetleri-uzre-fehle-masalli-91026",
+            "viewCount": 408,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Çatdırılma xidmətləri üzrə fəhlə (Gəncə)",
+            "postedDate": "2025-08-19T10:16:19.847Z",
+            "location": "Gəncə, Azərbaycan",
+            "slug": "abc-telecom-catdirilma-xidmetleri-uzre-fehle-gence-14569",
+            "viewCount": 599,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Sürücü (Çatdırılma xidmətləri üçün -Saatlı)",
+            "postedDate": "2025-08-19T10:14:04.098Z",
+            "location": "Saatlı, Azərbaycan",
+            "slug": "abc-telecom-surucu-catdirilma-xidmetleri-ucun-saatli-498",
+            "viewCount": 525,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Sürücü (Çatdırılma xidmətləri üçün -Masallı)",
+            "postedDate": "2025-08-19T10:08:14.947Z",
+            "location": "Masallı, Azərbaycan",
+            "slug": "abc-telecom-surucu-catdirilma-xidmetleri-ucun-masalli-65670",
+            "viewCount": 408,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Sürücü (Çatdırılma xidmətləri üçün -Gəncə)",
+            "postedDate": "2025-08-19T10:05:19.531Z",
+            "location": "Gəncə, Azərbaycan",
+            "slug": "abc-telecom-surucu-catdirilma-xidmetleri-ucun-gence-44049",
+            "viewCount": 8366,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Əməliyyatlar üzrə mütəxəssis (Qəbələ)",
+            "postedDate": "2025-08-19T10:04:00.552Z",
+            "location": "Qəbələ, Azərbaycan",
+            "slug": "abc-telecom-emeliyyatlar-uzre-mutexessis-qebele-3348",
+            "viewCount": 717,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Əməliyyatlar üzrə mütəxəssis (Masallı)",
+            "postedDate": "2025-08-19T10:01:56.953Z",
+            "location": "Masallı, Azərbaycan",
+            "slug": "abc-telecom-emeliyyatlar-uzre-mutexessis-masalli-46397",
+            "viewCount": 2787,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Telemarketinq mütəxəssisi",
+            "postedDate": "2025-08-19T04:06:24.359Z",
+            "location": "Bakı, Azərbaycan",
+            "slug": "abc-telecom-telemarketinq-mutexessisi-19044",
+            "viewCount": 162,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Satış məsləhətçisi (Kürdəmir)",
+            "postedDate": "2025-08-19T04:01:02.633Z",
+            "location": "Kürdəmir, Azərbaycan",
+            "slug": "abc-telecom-satis-meslehetcisi-kurdemir-60363",
+            "viewCount": 367,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Sürücü- ekspeditor (Servis)",
+            "postedDate": "2025-08-19T03:59:34.129Z",
+            "location": "Bakı, Azərbaycan",
+            "slug": "abc-telecom-surucu-ekspeditor-servis-47393",
+            "viewCount": 3365,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Müqavilə operatoru (Mərdəkan)",
+            "postedDate": "2025-08-18T11:43:42.374Z",
+            "location": "Mərdəkan, Azərbaycan",
+            "slug": "abc-telecom-muqavile-operatoru-merdekan-2066",
+            "viewCount": 572,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Müqavilə operatoru (Qusar)",
+            "postedDate": "2025-08-18T11:38:36.841Z",
+            "location": "Qusar, Azərbaycan",
+            "slug": "abc-telecom-muqavile-operatoru-qusar-88384",
+            "viewCount": 279,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Müqavilə operatoru (İsmayıllı)",
+            "postedDate": "2025-08-18T11:38:13.713Z",
+            "location": "İsmayıllı, Azərbaycan",
+            "slug": "abc-telecom-muqavile-operatoru-ismayilli-38014",
+            "viewCount": 249,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Müqavilə operatoru (Ağcabədi)",
+            "postedDate": "2025-08-18T11:37:50.782Z",
+            "location": "Ağcabədi, Azərbaycan",
+            "slug": "abc-telecom-muqavile-operatoru-agcabedi-44425",
+            "viewCount": 317,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Müqavilə operatoru (Oğuz)",
+            "postedDate": "2025-08-18T11:37:36.511Z",
+            "location": "Oğuz, Azərbaycan",
+            "slug": "abc-telecom-muqavile-operatoru-oguz-28383",
+            "viewCount": 280,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Kassir (Sahil Qəsəbəsi)",
+            "postedDate": "2025-08-18T06:58:45.658Z",
+            "location": "Bakı, Azərbaycan",
+            "slug": "abc-telecom-kassir-sahil-qesebesi-50997",
+            "viewCount": 677,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        },
+        {
+            "title": "Kassir (Qusar)",
+            "postedDate": "2025-08-18T06:58:30.934Z",
+            "location": "Qusar, Azərbaycan",
+            "slug": "abc-telecom-kassir-qusar-38517",
+            "viewCount": 272,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        }
+    ]
+}

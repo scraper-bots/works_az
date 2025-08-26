@@ -1,0 +1,18 @@
+ {
+            "title": "Çatdırılma xidmətləri üzrə fəhlə (Saatlı)",
+            "postedDate": "2025-08-19T10:18:29.683Z",
+            "location": "Saatlı, Azərbaycan",
+            "slug": "abc-telecom-catdirilma-xidmetleri-uzre-fehle-saatli-5678",
+            "viewCount": 490,
+            "company": {
+                "logo": "91fae030-3a04-11eb-991b-add28f18e8e5.png",
+                "name": "Kontakt Home",
+                "slug": "abc-telecom"
+            }
+        }
+
+JOB LINK IS THIS:
+https://jobs.glorri.az/vacancies/{company-slug}/{job-slug}
+
+example link:
+https://jobs.glorri.az/vacancies/abc-telecom/abc-telecom-catdirilma-xidmetleri-uzre-fehle-saatli-5678
