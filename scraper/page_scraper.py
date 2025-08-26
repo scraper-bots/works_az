@@ -42,7 +42,11 @@ class JobPageScraper:
             response = self.session.get(job_url)
             response.raise_for_status()
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            # Try to handle encoding issues
+            if response.encoding is None:
+                response.encoding = 'utf-8'
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
             
             # Extract job details
             job_data = self._extract_job_details(soup, job_url)
@@ -62,10 +66,17 @@ class JobPageScraper:
         job_data = {'job_url': job_url}
         
         try:
-            # Extract job title
+            # Extract job title - try multiple selectors
             title_element = soup.find('h1')
+            if not title_element:
+                title_element = soup.find('h2')
+            if not title_element:
+                title_element = soup.find('title')
+            
             if title_element:
-                job_data['title'] = title_element.get_text(strip=True)
+                title_text = title_element.get_text(strip=True)
+                if title_text and title_text != 'Unknown' and len(title_text) > 2:
+                    job_data['title'] = title_text
             
             # Extract company information
             company_link = soup.find('a', href=lambda href: href and '/companies/' in href)
