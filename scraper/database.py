@@ -233,6 +233,13 @@ class DatabaseManager:
         
         try:
             if scrape_timestamp:
+                # Debug: Check what timestamps we're working with
+                self.cursor.execute('SELECT COUNT(*), MIN(updated_at), MAX(updated_at) FROM "apply-bot".jobs')
+                result = self.cursor.fetchone()
+                if result:
+                    logger.info(f"Before cleanup: {result['count']} jobs, timestamps from {result['min']} to {result['max']}")
+                    logger.info(f"Scrape timestamp: {scrape_timestamp}")
+                
                 # Remove jobs that are older than 1 hour before scrape start time
                 # This ensures we keep all jobs updated during this scraping session
                 self.cursor.execute('''
