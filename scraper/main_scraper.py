@@ -98,7 +98,14 @@ class GlorriJobScraper:
                     try:
                         company_jobs = self.api_scraper.get_all_company_jobs(company_slug)
                         if company_jobs:
-                            parsed_jobs = [self.api_scraper.parse_job_data(job) for job in company_jobs]
+                            parsed_jobs = []
+                            for job in company_jobs:
+                                if isinstance(job, dict):  # Make sure job is a dictionary
+                                    parsed_job = self.api_scraper.parse_job_data(job)
+                                    if parsed_job:  # Only add non-empty parsed jobs
+                                        parsed_jobs.append(parsed_job)
+                                else:
+                                    logger.warning(f"Invalid job data format for {company_slug}: {type(job)}")
                             
                             # Apply per-company limit if specified
                             if max_jobs_per_company and len(parsed_jobs) > max_jobs_per_company:

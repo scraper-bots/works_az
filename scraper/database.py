@@ -233,10 +233,11 @@ class DatabaseManager:
         
         try:
             if scrape_timestamp:
-                # Remove jobs that weren't updated in this scraping cycle
+                # Remove jobs that are older than 1 hour before scrape start time
+                # This ensures we keep all jobs updated during this scraping session
                 self.cursor.execute('''
                     DELETE FROM "apply-bot".jobs 
-                    WHERE updated_at < %s OR updated_at IS NULL
+                    WHERE updated_at < (%s::timestamp - INTERVAL '1 hour') OR updated_at IS NULL
                 ''', (scrape_timestamp,))
                 cleanup_stats['jobs_removed'] = self.cursor.rowcount
                 
