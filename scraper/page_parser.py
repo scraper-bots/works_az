@@ -57,7 +57,7 @@ class JobPageParser:
             # Extract job details
             job_data = self._extract_job_details(soup, job_url)
             
-            time.sleep(3)  # Be more respectful to avoid rate limits
+            time.sleep(0.5)  # Reduced delay for faster scraping
             return job_data
             
         except requests.exceptions.RequestException as e:
