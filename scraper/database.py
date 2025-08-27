@@ -337,6 +337,7 @@ class DatabaseManager:
     def truncate_all_data(self):
         """Truncate all job and company data for fresh start"""
         try:
+            self._ensure_connection()
             self.cursor.execute('TRUNCATE TABLE "apply-bot".jobs CASCADE')
             self.cursor.execute('TRUNCATE TABLE "apply-bot".companies CASCADE')
             self.conn.commit()

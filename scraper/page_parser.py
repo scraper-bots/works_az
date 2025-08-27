@@ -10,7 +10,7 @@ from urllib.parse import urljoin, urlparse
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class JobPageScraper:
+class JobPageParser:
     def __init__(self):
         self.headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',

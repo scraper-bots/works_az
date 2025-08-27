@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fast async API scraper for Glorri.az using aiohttp
+API scraper for jobs and companies
 """
 
 import asyncio

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Fast async main scraper for Glorri.az job listings
-Uses asyncio and aiohttp for high-performance scraping
+Main job scraper orchestrator
 """
 
 import asyncio
@@ -12,8 +11,8 @@ from datetime import datetime
 from typing import List, Dict
 
 from database import DatabaseManager
-from api_scraper_async import AsyncAPIJobScraper
-from page_scraper import JobPageScraper
+from api_scraper import AsyncAPIJobScraper
+from page_parser import JobPageParser
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,7 +25,7 @@ class AsyncGlorriJobScraper:
     def __init__(self):
         self.db = DatabaseManager()
         self.api_scraper = AsyncAPIJobScraper()
-        self.page_scraper = JobPageScraper()
+        self.page_parser = JobPageParser()
         logger.info("Async Glorri Job Scraper initialized")
     
     async def scrape_all_jobs(self) -> Dict[str, int]:
@@ -52,10 +51,7 @@ class AsyncGlorriJobScraper:
         start_time = datetime.now()
         
         try:
-            # Step 1: Mark scraping start
-            scrape_timestamp = self.db.mark_scraping_start()
-            
-            # Step 2: Discover all companies
+            # Step 1: Discover all companies
             logger.info("Discovering all companies...")
             companies = await self.api_scraper.discover_all_companies()
             stats['companies_found'] = len(companies)
@@ -66,7 +62,7 @@ class AsyncGlorriJobScraper:
             
             logger.info(f"Found {len(companies)} companies: {companies}")
             
-            # Step 3: Scrape all jobs from API
+            # Step 2: Scrape all jobs from API
             logger.info("Scraping jobs from all companies...")
             api_jobs = await self.api_scraper.scrape_all_companies(companies)
             stats['jobs_found'] = len(api_jobs)
@@ -77,19 +73,19 @@ class AsyncGlorriJobScraper:
             
             logger.info(f"Found {len(api_jobs)} jobs from API")
             
-            # Step 4: Enhance jobs with detailed page data
+            # Step 3: Enhance jobs with detailed page data
             logger.info("Enhancing jobs with detailed page data...")
             enhanced_jobs = await self._enhance_jobs_with_details(api_jobs)
             
-            # Step 5: Store everything
-            logger.info("Storing data in database...")
+            # Step 4: Clear old data first
+            logger.info("Clearing old data...")
+            self.db.truncate_all_data()
+            
+            # Step 5: Store new data
+            logger.info("Storing fresh data in database...")
             self._store_companies(enhanced_jobs)
             stats['jobs_stored'] = self._store_jobs(enhanced_jobs)
-            
-            # Step 6: Clean up old data
-            logger.info("Removing old jobs...")
-            cleanup_stats = self.db.cleanup_old_data(scrape_timestamp)
-            stats['old_jobs_removed'] = cleanup_stats['jobs_removed']
+            stats['old_jobs_removed'] = "all (fresh start)"
             
             # Final results
             duration = datetime.now() - start_time
@@ -132,7 +128,7 @@ class AsyncGlorriJobScraper:
                     # Run page scraper in thread pool (it's sync)
                     loop = asyncio.get_event_loop()
                     detailed_data = await loop.run_in_executor(
-                        None, self.page_scraper.scrape_job_page, job_url
+                        None, self.page_parser.scrape_job_page, job_url
                     )
                     
                     if detailed_data and len(detailed_data) > 2:
@@ -226,7 +222,7 @@ class AsyncGlorriJobScraper:
     def close(self):
         """Clean up resources"""
         self.db.close()
-        self.page_scraper.close()
+        self.page_parser.close()
 
 async def main():
     """Main async entry point"""
