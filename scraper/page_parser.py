@@ -12,7 +12,31 @@ logger = logging.getLogger(__name__)
 
 class JobPageParser:
     def __init__(self):
-        self.headers = {
+        # Rotate between different user agents to avoid blocking
+        self.user_agents = [
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/139.0.2792.65 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+        ]
+        
+        self.current_user_agent_index = 0
+        self.failed_requests = 0  # Track consecutive failures
+        self.requests_since_renewal = 0  # Track requests since last renewal
+        self.session = None
+        self._create_new_session()
+    
+    def _create_new_session(self):
+        """Create a new session with rotated user agent"""
+        if self.session:
+            self.session.close()
+        
+        # Rotate user agent
+        user_agent = self.user_agents[self.current_user_agent_index]
+        self.current_user_agent_index = (self.current_user_agent_index + 1) % len(self.user_agents)
+        
+        headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'accept-encoding': 'gzip, deflate, br',
             'accept-language': 'az,en-US;q=0.9,en;q=0.8,tr;q=0.7',
@@ -27,27 +51,28 @@ class JobPageParser:
             'sec-fetch-site': 'none',
             'sec-fetch-user': '?1',
             'upgrade-insecure-requests': '1',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+            'user-agent': user_agent
         }
+        
         self.session = requests.Session()
-        self.session.headers.update(self.headers)
-        self.failed_requests = 0  # Track consecutive failures
+        self.session.headers.update(headers)
+        self.failed_requests = 0
+        self.requests_since_renewal = 0
+        
+        logger.info(f"🔄 Created new session with user agent: {user_agent[:50]}...")
     
     def _renew_session(self):
         """Renew session when it gets blocked"""
         logger.info("🔄 Renewing session due to consecutive failures")
-        self.session.close()
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
-        self.failed_requests = 0
+        self._create_new_session()
     
     def scrape_job_page(self, job_url: str) -> Optional[Dict]:
         """Scrape detailed information from a job page with retry logic"""
         max_retries = 3
         base_delay = 1
         
-        # Renew session if too many consecutive failures
-        if self.failed_requests >= 3:
+        # Renew session if too many consecutive failures OR too many requests
+        if self.failed_requests >= 2 or self.requests_since_renewal >= 50:
             self._renew_session()
         
         for attempt in range(max_retries):
@@ -60,18 +85,29 @@ class JobPageParser:
                 else:
                     logger.info(f"Retry {attempt}/{max_retries-1} for {job_url}")
                 
+                self.requests_since_renewal += 1
                 response = self.session.get(job_url)
                 
-                # Handle 429 rate limit specifically
+                # Handle rate limiting and blocking
                 if response.status_code == 429:
+                    logger.warning(f"Rate limited (429), renewing session and retrying...")
+                    self._renew_session()  # Renew session immediately on 429
                     if attempt < max_retries - 1:
                         wait_time = base_delay * (2 ** attempt)  # Exponential backoff
-                        logger.warning(f"Rate limited (429), waiting {wait_time}s before retry...")
+                        logger.warning(f"Waiting {wait_time}s before retry...")
                         time.sleep(wait_time)
                         continue
                     else:
                         logger.error(f"Max retries exceeded for rate limit on {job_url}")
                         return None
+                
+                # Handle other blocking (403, 404, etc.)
+                if response.status_code in [403, 404, 502, 503]:
+                    logger.warning(f"Blocked with status {response.status_code}, renewing session...")
+                    self._renew_session()
+                    if attempt < max_retries - 1:
+                        time.sleep(base_delay * (2 ** attempt))
+                        continue
                 
                 response.raise_for_status()
                 

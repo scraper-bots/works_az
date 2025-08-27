@@ -227,9 +227,9 @@ class AsyncGlorriJobScraper:
                 # Still add the original job data
                 enhanced_jobs.append(job)
             
-            # Long delay between each request to be very respectful
+            # Very long delay between each request to avoid blocking
             if i < len(jobs_with_urls) - 1:  # Don't wait after the last job
-                await asyncio.sleep(3)  # 3 seconds between each job
+                await asyncio.sleep(5)  # 5 seconds between each job
         
         # Add jobs without URLs
         jobs_without_urls = [job for job in jobs if not job.get('job_url')]
