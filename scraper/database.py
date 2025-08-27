@@ -67,6 +67,20 @@ class DatabaseManager:
             logger.error(f"Error connecting to database: {e}")
             raise
     
+    def _ensure_connection(self):
+        """Ensure database connection is active"""
+        try:
+            if not self.conn or self.conn.closed:
+                logger.info("Reconnecting to database...")
+                self.connect()
+            else:
+                # Test connection
+                self.cursor.execute("SELECT 1")
+                self.conn.commit()
+        except Exception as e:
+            logger.warning(f"Connection test failed, reconnecting: {e}")
+            self.connect()
+    
     def create_tables(self):
         """Create necessary tables if they don't exist"""
         try:
@@ -138,6 +152,7 @@ class DatabaseManager:
     def insert_company(self, company_data: Dict) -> int:
         """Insert or update company and return company ID"""
         try:
+            self._ensure_connection()
             # Check if company exists
             self.cursor.execute(
                 'SELECT id FROM "apply-bot".companies WHERE slug = %s',
@@ -174,6 +189,7 @@ class DatabaseManager:
     def insert_job(self, job_data: Dict) -> bool:
         """Insert or update job listing"""
         try:
+            self._ensure_connection()
             # Check if job exists
             self.cursor.execute(
                 'SELECT id FROM "apply-bot".jobs WHERE slug = %s',
@@ -263,6 +279,7 @@ class DatabaseManager:
         cleanup_stats = {'jobs_removed': 0, 'companies_removed': 0}
         
         try:
+            self._ensure_connection()
             if scrape_timestamp:
                 # Debug: Check what timestamps we're working with
                 self.cursor.execute('SELECT COUNT(*), MIN(updated_at), MAX(updated_at) FROM "apply-bot".jobs')
