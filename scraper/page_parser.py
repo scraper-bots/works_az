@@ -33,39 +33,66 @@ class JobPageParser:
         self.session.headers.update(self.headers)
     
     def scrape_job_page(self, job_url: str) -> Optional[Dict]:
-        """Scrape detailed information from a job page"""
-        try:
-            if not job_url:
-                return None
-                
-            logger.info(f"Scraping job page: {job_url}")
-            
-            response = self.session.get(job_url)
-            response.raise_for_status()
-            
-            # Handle encoding more robustly
-            if response.encoding is None or response.encoding == 'ISO-8859-1':
-                response.encoding = 'utf-8'
-            
+        """Scrape detailed information from a job page with retry logic"""
+        max_retries = 3
+        base_delay = 1
+        
+        for attempt in range(max_retries):
             try:
-                # First try with response.text
-                soup = BeautifulSoup(response.text, 'html.parser')
-            except UnicodeDecodeError:
-                # Fallback to content with explicit encoding
-                soup = BeautifulSoup(response.content, 'html.parser', from_encoding='utf-8')
-            
-            # Extract job details
-            job_data = self._extract_job_details(soup, job_url)
-            
-            time.sleep(0.5)  # Reduced delay for faster scraping
-            return job_data
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching job page {job_url}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error parsing job page {job_url}: {e}")
-            return None
+                if not job_url:
+                    return None
+                    
+                if attempt == 0:
+                    logger.info(f"Scraping job page: {job_url}")
+                else:
+                    logger.info(f"Retry {attempt}/{max_retries-1} for {job_url}")
+                
+                response = self.session.get(job_url)
+                
+                # Handle 429 rate limit specifically
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Rate limited (429), waiting {wait_time}s before retry...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"Max retries exceeded for rate limit on {job_url}")
+                        return None
+                
+                response.raise_for_status()
+                
+                # Handle encoding more robustly
+                if response.encoding is None or response.encoding == 'ISO-8859-1':
+                    response.encoding = 'utf-8'
+                
+                try:
+                    # First try with response.text
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                except UnicodeDecodeError:
+                    # Fallback to content with explicit encoding
+                    soup = BeautifulSoup(response.content, 'html.parser', from_encoding='utf-8')
+                
+                # Extract job details
+                job_data = self._extract_job_details(soup, job_url)
+                
+                time.sleep(1)  # Increased delay to be more respectful
+                return job_data
+                
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1 and "429" in str(e):
+                    wait_time = base_delay * (2 ** attempt)
+                    logger.warning(f"Request error (likely rate limit), waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Error fetching job page {job_url}: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Error parsing job page {job_url}: {e}")
+                return None
+        
+        return None
     
     def _extract_job_details(self, soup: BeautifulSoup, job_url: str) -> Dict:
         """Extract job details from the parsed HTML"""

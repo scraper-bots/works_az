@@ -146,7 +146,7 @@ class AsyncGlorriJobScraper:
             return jobs
         
         enhanced_jobs = []
-        semaphore = asyncio.Semaphore(5)  # Balanced concurrency to avoid rate limits
+        semaphore = asyncio.Semaphore(3)  # Conservative concurrency to prevent rate limits
         
         async def enhance_single_job(job):
             async with semaphore:
@@ -193,8 +193,8 @@ class AsyncGlorriJobScraper:
                     logger.error(f"❌ Error enhancing job {job.get('title')}: {e}")
                     return job
         
-        # Process jobs concurrently with optimized batching
-        batch_size = 15  # Balanced batch size
+        # Process jobs with conservative rate limiting
+        batch_size = 10  # Smaller batches to be respectful
         for i in range(0, len(jobs_with_urls), batch_size):
             batch = jobs_with_urls[i:i+batch_size]
             
@@ -211,8 +211,8 @@ class AsyncGlorriJobScraper:
                 elif isinstance(result, Exception):
                     logger.error(f"Batch error: {result}")
             
-            # Balanced rate limiting
-            await asyncio.sleep(1)  # 1 second between batches
+            # Conservative rate limiting to avoid 429 errors
+            await asyncio.sleep(2)  # 2 seconds between batches
         
         # Add jobs without URLs
         jobs_without_urls = [job for job in jobs if not job.get('job_url')]
