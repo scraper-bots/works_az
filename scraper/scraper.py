@@ -77,15 +77,12 @@ class AsyncGlorriJobScraper:
             logger.info("Enhancing jobs with detailed page data...")
             enhanced_jobs = await self._enhance_jobs_with_details(api_jobs)
             
-            # Step 4: Clear old data first
-            logger.info("Clearing old data...")
+            # Step 4: Clear old data and store new data
+            logger.info("Clearing old data and storing fresh data...")
             self.db.truncate_all_data()
-            
-            # Step 5: Store new data
-            logger.info("Storing fresh data in database...")
             self._store_companies(enhanced_jobs)
             stats['jobs_stored'] = self._store_jobs(enhanced_jobs)
-            stats['old_jobs_removed'] = "all (fresh start)"
+            stats['old_jobs_removed'] = "all (cleared before storing)"
             
             # Final results
             duration = datetime.now() - start_time
