@@ -99,7 +99,7 @@ class DatabaseManager:
             );
             """
             
-            # Jobs table
+            # Jobs table with additional fields
             jobs_table = """
             CREATE TABLE IF NOT EXISTS "apply-bot".jobs (
                 id SERIAL PRIMARY KEY,
@@ -122,7 +122,14 @@ class DatabaseManager:
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                -- New additional fields
+                position_level VARCHAR(100),          -- Vəzifə dərəcəsi (Mütəxəssis, etc.)
+                education_level VARCHAR(100),         -- Təhsil (Ali, Natamam ali, etc.)
+                salary_min INTEGER,                   -- Minimum salary
+                salary_max INTEGER,                   -- Maximum salary 
+                salary_currency VARCHAR(10),          -- Currency (AZN, USD, etc.)
+                published_date TIMESTAMP              -- Paylaşılıb date (different from posted_date)
             );
             """
             
@@ -198,14 +205,15 @@ class DatabaseManager:
             result = self.cursor.fetchone()
             
             if result:
-                # Update existing job
+                # Update existing job with additional fields
                 self.cursor.execute('''
                     UPDATE "apply-bot".jobs 
                     SET title = %s, company_name = %s, company_slug = %s, location = %s,
                         job_type = %s, experience_level = %s, description = %s, requirements = %s,
                         posted_date = %s, deadline = %s, view_count = %s, category = %s,
                         job_url = %s, apply_url = %s, updated_at = CURRENT_TIMESTAMP,
-                        is_active = %s
+                        is_active = %s, position_level = %s, education_level = %s,
+                        salary_min = %s, salary_max = %s, salary_currency = %s, published_date = %s
                     WHERE slug = %s
                 ''', (
                     job_data['title'], job_data.get('company_name'), job_data.get('company_slug'),
@@ -213,18 +221,24 @@ class DatabaseManager:
                     job_data.get('description'), job_data.get('requirements'), job_data.get('posted_date'),
                     job_data.get('deadline'), job_data.get('view_count'), job_data.get('category'),
                     job_data.get('job_url'), job_data.get('apply_url'), job_data.get('is_active', True),
+                    job_data.get('position_level'), job_data.get('education_level'),
+                    job_data.get('salary_min'), job_data.get('salary_max'),
+                    job_data.get('salary_currency'), job_data.get('published_date'),
                     job_data['slug']
                 ))
                 logger.info(f"Updated job: {job_data['title']}")
             else:
-                # Insert new job
+                # Insert new job with additional fields
                 self.cursor.execute('''
                     INSERT INTO "apply-bot".jobs (
                         title, slug, company_id, company_name, company_slug, location,
                         job_type, experience_level, description, requirements, posted_date,
-                        deadline, view_count, category, job_url, apply_url, is_active
+                        deadline, view_count, category, job_url, apply_url, is_active,
+                        position_level, education_level, salary_min, salary_max, 
+                        salary_currency, published_date
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s
                     )
                 ''', (
                     job_data['title'], job_data['slug'], job_data.get('company_id'),
@@ -232,7 +246,10 @@ class DatabaseManager:
                     job_data.get('location'), job_data.get('job_type'), job_data.get('experience_level'),
                     job_data.get('description'), job_data.get('requirements'), job_data.get('posted_date'),
                     job_data.get('deadline'), job_data.get('view_count'), job_data.get('category'),
-                    job_data.get('job_url'), job_data.get('apply_url'), job_data.get('is_active', True)
+                    job_data.get('job_url'), job_data.get('apply_url'), job_data.get('is_active', True),
+                    job_data.get('position_level'), job_data.get('education_level'),
+                    job_data.get('salary_min'), job_data.get('salary_max'),
+                    job_data.get('salary_currency'), job_data.get('published_date')
                 ))
                 logger.info(f"Inserted new job: {job_data['title']}")
             
@@ -261,6 +278,21 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting companies count: {e}")
             return 0
+    
+    def job_exists(self, company_slug: str, job_slug: str) -> bool:
+        """Check if a job already exists in database using company_slug and job_slug"""
+        try:
+            self._ensure_connection()
+            job_url = f"https://jobs.glorri.az/vacancies/{company_slug}/{job_slug}"
+            self.cursor.execute(
+                'SELECT id FROM "apply-bot".jobs WHERE job_url = %s OR slug = %s',
+                (job_url, job_slug)
+            )
+            result = self.cursor.fetchone()
+            return result is not None
+        except Exception as e:
+            logger.error(f"Error checking if job exists: {e}")
+            return False  # If error, assume job doesn't exist and scrape it
     
     def mark_scraping_start(self) -> str:
         """Mark the start of a scraping cycle and return timestamp"""

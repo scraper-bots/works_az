@@ -143,15 +143,49 @@ class AsyncGlorriJobScraper:
             
         return stats
     
+    def _extract_job_slug_from_url(self, job_url: str) -> str:
+        """Extract job slug from job URL"""
+        if not job_url:
+            return None
+        # URL format: https://jobs.glorri.az/vacancies/company-slug/job-slug
+        parts = job_url.rstrip('/').split('/')
+        if len(parts) >= 2:
+            return parts[-1]  # Last part is job slug
+        return None
+
     async def _enhance_jobs_with_details(self, jobs: List[Dict]) -> List[Dict]:
-        """Enhance jobs with detailed page data using async processing"""
+        """Enhance jobs with detailed page data using async processing with database checks"""
         
-        # Filter jobs that have URLs
-        jobs_with_urls = [job for job in jobs if job.get('job_url')]
-        logger.info(f"Enhancing {len(jobs_with_urls)} jobs with page details")
+        # Filter jobs that have URLs and check which ones need scraping
+        jobs_to_scrape = []
+        jobs_already_exist = []
         
-        if not jobs_with_urls:
-            return jobs
+        for job in jobs:
+            if not job.get('job_url'):
+                jobs_already_exist.append(job)  # No URL, can't scrape
+                continue
+                
+            # Extract company_slug and job_slug from URL or job data
+            company_slug = job.get('company_slug')
+            job_slug = self._extract_job_slug_from_url(job.get('job_url'))
+            
+            if company_slug and job_slug:
+                # Check if job already exists in database
+                if self.db.job_exists(company_slug, job_slug):
+                    logger.info(f"⏭️  Skipping existing job: {job.get('title', 'Unknown')} ({company_slug}/{job_slug})")
+                    jobs_already_exist.append(job)
+                else:
+                    logger.info(f"🆕 New job found: {job.get('title', 'Unknown')} ({company_slug}/{job_slug})")
+                    jobs_to_scrape.append(job)
+            else:
+                # Fallback: scrape if we can't determine slugs
+                jobs_to_scrape.append(job)
+        
+        logger.info(f"Found {len(jobs_to_scrape)} new jobs to scrape, {len(jobs_already_exist)} already exist")
+        
+        if not jobs_to_scrape:
+            logger.info("No new jobs to scrape - all jobs already exist in database")
+            return jobs  # Return original jobs without scraping
         
         enhanced_jobs = []
         semaphore = asyncio.Semaphore(1)  # Very conservative - one at a time to prevent rate limits
@@ -210,11 +244,11 @@ class AsyncGlorriJobScraper:
                     logger.error(f"❌ Error enhancing job {job.get('title')}: {e}")
                     return job
         
-        # Process jobs one by one to avoid rate limits completely
-        logger.info(f"Processing {len(jobs_with_urls)} jobs sequentially (no batching)")
+        # Process only new jobs one by one to avoid rate limits
+        logger.info(f"Processing {len(jobs_to_scrape)} NEW jobs sequentially (no batching)")
         
-        for i, job in enumerate(jobs_with_urls):
-            logger.info(f"Processing job {i+1}/{len(jobs_with_urls)}: {job.get('title', 'Unknown')}")
+        for i, job in enumerate(jobs_to_scrape):
+            logger.info(f"Processing job {i+1}/{len(jobs_to_scrape)}: {job.get('title', 'Unknown')}")
             
             try:
                 result = await enhance_single_job(job)
@@ -228,12 +262,11 @@ class AsyncGlorriJobScraper:
                 enhanced_jobs.append(job)
             
             # Very long delay between each request to avoid blocking
-            if i < len(jobs_with_urls) - 1:  # Don't wait after the last job
+            if i < len(jobs_to_scrape) - 1:  # Don't wait after the last job
                 await asyncio.sleep(5)  # 5 seconds between each job
         
-        # Add jobs without URLs
-        jobs_without_urls = [job for job in jobs if not job.get('job_url')]
-        enhanced_jobs.extend(jobs_without_urls)
+        # Add jobs that already exist (no need to scrape them)
+        enhanced_jobs.extend(jobs_already_exist)
         
         logger.info(f"Enhanced {len(enhanced_jobs)} total jobs")
         return enhanced_jobs

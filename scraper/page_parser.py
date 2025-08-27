@@ -564,6 +564,106 @@ class JobPageParser:
         
         return None
     
+    def _extract_additional_details(self, soup: BeautifulSoup) -> Dict[str, any]:
+        """Extract additional job details from the 'Vakansiya haqqında' section"""
+        additional_data = {}
+        
+        # Find all the key-value pairs in the job details section
+        detail_pairs = soup.find_all('div', class_='mb-4 flex justify-between sm:mb-6')
+        
+        for pair in detail_pairs:
+            try:
+                key_elem = pair.find('p', class_='text-neutral-80')
+                value_elem = pair.find('p', class_='font-semibold capitalize text-foreground') or \
+                           pair.find('p', class_='font-semibold text-foreground')
+                
+                if key_elem and value_elem:
+                    key = key_elem.get_text(strip=True).lower()
+                    value = value_elem.get_text(strip=True)
+                    
+                    # Map Azerbaijani keys to English field names
+                    if 'təcrübə' in key:  # Experience
+                        additional_data['experience_level'] = value
+                    elif 'vəzifə dərəcəsi' in key:  # Position level
+                        additional_data['position_level'] = value
+                    elif 'təhsil' in key:  # Education
+                        additional_data['education_level'] = value
+                    elif 'əmək haqqı' in key or 'maaş' in key:  # Salary
+                        additional_data.update(self._parse_salary(value))
+                    elif 'paylaşılıb' in key:  # Published date
+                        additional_data['published_date'] = self._parse_date(value)
+                        
+            except Exception as e:
+                continue
+                
+        return additional_data
+    
+    def _parse_salary(self, salary_text: str) -> Dict[str, any]:
+        """Parse salary range from text like '1200 - 1500 AZN'"""
+        import re
+        
+        salary_data = {}
+        
+        # Remove HTML comments and clean text
+        salary_text = re.sub(r'<!--.*?-->', '', salary_text)
+        salary_text = salary_text.strip()
+        
+        # Pattern for salary range: "1200 - 1500 AZN" or "1200-1500 AZN"
+        range_pattern = r'(\d+)\s*[-–]\s*(\d+)\s*([A-Z]{3})?'
+        range_match = re.search(range_pattern, salary_text)
+        
+        if range_match:
+            salary_data['salary_min'] = int(range_match.group(1))
+            salary_data['salary_max'] = int(range_match.group(2))
+            if range_match.group(3):
+                salary_data['salary_currency'] = range_match.group(3)
+            else:
+                # Default currency if not specified
+                salary_data['salary_currency'] = 'AZN'
+        else:
+            # Pattern for single salary: "1500 AZN"
+            single_pattern = r'(\d+)\s*([A-Z]{3})?'
+            single_match = re.search(single_pattern, salary_text)
+            if single_match:
+                salary_amount = int(single_match.group(1))
+                salary_data['salary_min'] = salary_amount
+                salary_data['salary_max'] = salary_amount
+                salary_data['salary_currency'] = single_match.group(2) or 'AZN'
+        
+        return salary_data
+    
+    def _parse_date(self, date_text: str) -> Optional:
+        """Parse various date formats"""
+        import re
+        from datetime import datetime
+        
+        # Clean the text
+        date_text = date_text.strip().lower()
+        
+        # Azerbaijani month names to numbers
+        az_months = {
+            'yanvar': 1, 'fevral': 2, 'mart': 3, 'aprel': 4, 'may': 5, 'iyun': 6,
+            'iyul': 7, 'avqust': 8, 'sentyabr': 9, 'oktyabr': 10, 'noyabr': 11, 'dekabr': 12
+        }
+        
+        # Pattern: "avqust 21, 2025"
+        az_pattern = r'(\w+)\s+(\d{1,2}),?\s+(\d{4})'
+        az_match = re.search(az_pattern, date_text)
+        
+        if az_match:
+            month_name = az_match.group(1)
+            day = int(az_match.group(2))
+            year = int(az_match.group(3))
+            
+            if month_name in az_months:
+                try:
+                    return datetime(year, az_months[month_name], day)
+                except ValueError:
+                    pass
+        
+        # Fallback to existing date parsing logic
+        return None
+    
     def _extract_job_details(self, soup: BeautifulSoup, job_url: str) -> Dict:
         """Extract job details from the parsed HTML using universal selectors"""
         job_data = {'job_url': job_url}
@@ -612,6 +712,10 @@ class JobPageParser:
             apply_url = self._extract_apply_url_universal(soup, job_url)
             if apply_url:
                 job_data['apply_url'] = apply_url
+            
+            # EXTRACT ADDITIONAL JOB DETAILS
+            additional_details = self._extract_additional_details(soup)
+            job_data.update(additional_details)
             
             # Extract posted date (keep original logic as it works)
             date_pattern = r'\d{2}-\d{2}-\d{4}'
@@ -681,9 +785,12 @@ class JobPageParser:
             if len(path_parts) >= 2:
                 job_data['slug'] = path_parts[-1]
             
-            # Enhanced logging with extraction stats
+            # Enhanced logging with extraction stats (including new fields)
             extracted_fields = []
-            for field in ['title', 'company_name', 'description', 'requirements', 'category', 'job_type', 'experience_level', 'apply_url']:
+            all_fields = ['title', 'company_name', 'description', 'requirements', 'category', 'job_type', 
+                         'experience_level', 'apply_url', 'position_level', 'education_level', 
+                         'salary_min', 'salary_max', 'published_date']
+            for field in all_fields:
                 if job_data.get(field) and str(job_data.get(field)).strip():
                     extracted_fields.append(field)
             
