@@ -3,3 +3,5 @@ venv
 .env
 scraper/__pycache__
 *.log
+node_modules
+appi
