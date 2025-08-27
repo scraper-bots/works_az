@@ -31,11 +31,24 @@ class JobPageParser:
         }
         self.session = requests.Session()
         self.session.headers.update(self.headers)
+        self.failed_requests = 0  # Track consecutive failures
+    
+    def _renew_session(self):
+        """Renew session when it gets blocked"""
+        logger.info("🔄 Renewing session due to consecutive failures")
+        self.session.close()
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
+        self.failed_requests = 0
     
     def scrape_job_page(self, job_url: str) -> Optional[Dict]:
         """Scrape detailed information from a job page with retry logic"""
         max_retries = 3
         base_delay = 1
+        
+        # Renew session if too many consecutive failures
+        if self.failed_requests >= 3:
+            self._renew_session()
         
         for attempt in range(max_retries):
             try:
@@ -76,6 +89,9 @@ class JobPageParser:
                 # Extract job details
                 job_data = self._extract_job_details(soup, job_url)
                 
+                # Reset failure counter on success
+                self.failed_requests = 0
+                
                 time.sleep(1)  # Increased delay to be more respectful
                 return job_data
                 
@@ -87,11 +103,15 @@ class JobPageParser:
                     continue
                 else:
                     logger.error(f"Error fetching job page {job_url}: {e}")
+                    self.failed_requests += 1
                     return None
             except Exception as e:
                 logger.error(f"Error parsing job page {job_url}: {e}")
+                self.failed_requests += 1
                 return None
         
+        # Increment failure counter if all retries failed
+        self.failed_requests += 1
         return None
     
     def _extract_title_universal(self, soup: BeautifulSoup) -> Optional[str]:

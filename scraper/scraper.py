@@ -154,7 +154,7 @@ class AsyncGlorriJobScraper:
             return jobs
         
         enhanced_jobs = []
-        semaphore = asyncio.Semaphore(3)  # Conservative concurrency to prevent rate limits
+        semaphore = asyncio.Semaphore(1)  # Very conservative - one at a time to prevent rate limits
         
         async def enhance_single_job(job):
             async with semaphore:
@@ -210,26 +210,26 @@ class AsyncGlorriJobScraper:
                     logger.error(f"❌ Error enhancing job {job.get('title')}: {e}")
                     return job
         
-        # Process jobs with conservative rate limiting
-        batch_size = 10  # Smaller batches to be respectful
-        for i in range(0, len(jobs_with_urls), batch_size):
-            batch = jobs_with_urls[i:i+batch_size]
+        # Process jobs one by one to avoid rate limits completely
+        logger.info(f"Processing {len(jobs_with_urls)} jobs sequentially (no batching)")
+        
+        for i, job in enumerate(jobs_with_urls):
+            logger.info(f"Processing job {i+1}/{len(jobs_with_urls)}: {job.get('title', 'Unknown')}")
             
-            logger.info(f"Processing batch {i//batch_size + 1}/{(len(jobs_with_urls)-1)//batch_size + 1} ({len(batch)} jobs)")
-            
-            # Process batch
-            tasks = [enhance_single_job(job) for job in batch]
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Add results
-            for result in batch_results:
+            try:
+                result = await enhance_single_job(job)
                 if isinstance(result, dict):
                     enhanced_jobs.append(result)
-                elif isinstance(result, Exception):
-                    logger.error(f"Batch error: {result}")
+                else:
+                    logger.error(f"Invalid result type: {type(result)}")
+            except Exception as e:
+                logger.error(f"Error processing job {job.get('title', 'Unknown')}: {e}")
+                # Still add the original job data
+                enhanced_jobs.append(job)
             
-            # Conservative rate limiting to avoid 429 errors
-            await asyncio.sleep(2)  # 2 seconds between batches
+            # Long delay between each request to be very respectful
+            if i < len(jobs_with_urls) - 1:  # Don't wait after the last job
+                await asyncio.sleep(3)  # 3 seconds between each job
         
         # Add jobs without URLs
         jobs_without_urls = [job for job in jobs if not job.get('job_url')]
