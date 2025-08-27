@@ -283,15 +283,16 @@ class DatabaseManager:
         """Check if a job already exists in database using company_slug and job_slug"""
         try:
             self._ensure_connection()
-            job_url = f"https://jobs.glorri.az/vacancies/{company_slug}/{job_slug}"
+            
+            # Use indexed slug field only for fastest lookup
             self.cursor.execute(
-                'SELECT id FROM "apply-bot".jobs WHERE job_url = %s OR slug = %s',
-                (job_url, job_slug)
+                'SELECT 1 FROM "apply-bot".jobs WHERE slug = %s LIMIT 1',
+                (job_slug,)
             )
             result = self.cursor.fetchone()
             return result is not None
         except Exception as e:
-            logger.error(f"Error checking if job exists: {e}")
+            logger.warning(f"DB error checking job exists ({company_slug}/{job_slug}): {e}")
             return False  # If error, assume job doesn't exist and scrape it
     
     def mark_scraping_start(self) -> str:

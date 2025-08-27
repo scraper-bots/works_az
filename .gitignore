@@ -5,3 +5,4 @@ scraper/__pycache__
 *.log
 node_modules
 appi
+.vscode
