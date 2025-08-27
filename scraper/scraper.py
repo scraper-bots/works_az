@@ -89,10 +89,18 @@ class AsyncGlorriJobScraper:
                     logger.error("❌ ABORTING to prevent data loss")
                     return stats
                 
-                # Verify enhancement quality
+                # Verify enhancement quality - fix detection logic
                 enhanced_count = 0
                 for job in enhanced_jobs:
-                    if job.get('description') or job.get('requirements') or job.get('category'):
+                    # Count jobs with ANY enhanced fields (not empty strings)
+                    has_enhanced_data = any([
+                        job.get('description') and str(job.get('description')).strip(),
+                        job.get('requirements') and str(job.get('requirements')).strip(), 
+                        job.get('category') and str(job.get('category')).strip(),
+                        job.get('job_type') and str(job.get('job_type')).strip(),
+                        job.get('apply_url') and str(job.get('apply_url')).strip()
+                    ])
+                    if has_enhanced_data:
                         enhanced_count += 1
                 
                 logger.info(f"✅ Enhancement successful: {enhanced_count}/{len(enhanced_jobs)} jobs have enhanced data")
@@ -168,22 +176,31 @@ class AsyncGlorriJobScraper:
                         # Merge API data with detailed data, prioritizing enhanced data
                         enhanced_job = {**job, **detailed_data}
                         
-                        # Verify we actually got enhanced data
-                        has_enhanced = any([
-                            detailed_data.get('description'),
-                            detailed_data.get('requirements'), 
-                            detailed_data.get('category'),
-                            detailed_data.get('job_type')
-                        ])
+                        # Verify we got enhanced data 
+                        enhanced_fields = []
+                        if detailed_data.get('description') and str(detailed_data.get('description')).strip():
+                            enhanced_fields.append('description')
+                        if detailed_data.get('requirements') and str(detailed_data.get('requirements')).strip():
+                            enhanced_fields.append('requirements')
+                        if detailed_data.get('category') and str(detailed_data.get('category')).strip():
+                            enhanced_fields.append('category')
+                        if detailed_data.get('job_type') and str(detailed_data.get('job_type')).strip():
+                            enhanced_fields.append('job_type')
+                        if detailed_data.get('apply_url') and str(detailed_data.get('apply_url')).strip():
+                            enhanced_fields.append('apply_url')
                         
-                        if has_enhanced:
-                            logger.info(f"✅ Enhanced: {job.get('title', 'Unknown')}")
-                        else:
-                            logger.warning(f"⚠️  Partial enhancement: {job.get('title', 'Unknown')}")
+                        job_title = enhanced_job.get('title', 'Unknown Job')
+                        
+                        if len(enhanced_fields) >= 3:  # Good enhancement
+                            logger.info(f"✅ Enhanced: {job_title} ({len(enhanced_fields)} fields)")
+                        elif len(enhanced_fields) >= 1:  # Partial enhancement 
+                            logger.info(f"⚠️  Partial: {job_title} ({', '.join(enhanced_fields)})")
+                        else:  # No enhancement
+                            logger.warning(f"❌ No enhancement: {job_title}")
                             
                         return enhanced_job
                     else:
-                        logger.warning(f"❌ Could not enhance: {job.get('title', 'Unknown')}")
+                        logger.warning(f"❌ Could not extract: {job.get('title', 'Unknown')}")
                         return job
                     
                 except asyncio.TimeoutError:
@@ -290,7 +307,7 @@ class AsyncGlorriJobScraper:
                 for row in self.db.cursor.fetchall():
                     company_id_map[row['slug']] = row['id']
             
-            # Prepare bulk job data
+            # Prepare bulk job data with data cleaning
             job_values = []
             for job in jobs:
                 # Get company_id from map
@@ -298,32 +315,33 @@ class AsyncGlorriJobScraper:
                 if job.get('company_slug'):
                     company_id = company_id_map.get(job['company_slug'])
                 
-                # Truncate long fields
-                job_type = job.get('job_type')
-                if job_type and len(job_type) > 100:
-                    job_type = job_type[:100]
-                    
-                experience_level = job.get('experience_level')
-                if experience_level and len(experience_level) > 100:
-                    experience_level = experience_level[:100]
+                # Clean and truncate text fields
+                def clean_text(text, max_length=None):
+                    if not text:
+                        return None
+                    # Remove null characters that cause PostgreSQL errors
+                    cleaned = str(text).replace('\x00', '').strip()
+                    if max_length and len(cleaned) > max_length:
+                        cleaned = cleaned[:max_length]
+                    return cleaned if cleaned else None
                 
                 job_values.append((
-                    job.get('title', ''),
-                    job.get('slug', ''),
+                    clean_text(job.get('title'), 500),
+                    clean_text(job.get('slug'), 500),
                     company_id,
-                    job.get('company_name', ''),
-                    job.get('company_slug', ''),
-                    job.get('location', ''),
-                    job_type,
-                    experience_level,
-                    job.get('description'),
-                    job.get('requirements'),
+                    clean_text(job.get('company_name'), 255),
+                    clean_text(job.get('company_slug'), 255),
+                    clean_text(job.get('location'), 255),
+                    clean_text(job.get('job_type'), 100),
+                    clean_text(job.get('experience_level'), 100),
+                    clean_text(job.get('description')),
+                    clean_text(job.get('requirements')),
                     job.get('posted_date'),
                     job.get('deadline'),
                     job.get('view_count', 0),
-                    job.get('category'),
-                    job.get('job_url'),
-                    job.get('apply_url'),
+                    clean_text(job.get('category'), 255),
+                    clean_text(job.get('job_url'), 1000),
+                    clean_text(job.get('apply_url'), 1000),
                     job.get('is_active', True)
                 ))
             

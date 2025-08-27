@@ -94,76 +94,470 @@ class JobPageParser:
         
         return None
     
+    def _extract_title_universal(self, soup: BeautifulSoup) -> Optional[str]:
+        """Universal title extraction using multiple fallback strategies"""
+        title_selectors = [
+            # Strategy 1: Standard H1 tags
+            ('h1', 'text'),
+            # Strategy 2: Common job title classes
+            ('.job-title', 'text'),
+            ('.position-title', 'text'),
+            ('.vacancy-title', 'text'),
+            # Strategy 3: Heading tags with job-related classes
+            ('h1[class*="title"]', 'text'),
+            ('h2[class*="title"]', 'text'),
+            ('h1[class*="job"]', 'text'),
+            ('h1[class*="position"]', 'text'),
+            # Strategy 4: Div with title-like classes
+            ('div[class*="title"]', 'text'),
+            ('div[class*="job-title"]', 'text'),
+            # Strategy 5: Meta og:title
+            ('meta[property="og:title"]', 'content'),
+            # Strategy 6: Page title as last resort
+            ('title', 'text')
+        ]
+        
+        for selector, attr_type in title_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    if attr_type == 'text':
+                        title_text = element.get_text(strip=True)
+                    else:  # content attribute
+                        title_text = element.get(attr_type, '')
+                    
+                    if title_text and len(title_text.strip()) > 2:
+                        # Clean title - remove company suffixes and noise
+                        clean_title = self._clean_title_text(title_text)
+                        if clean_title and clean_title.lower() not in ['jobs', 'vacancies', 'career', 'glorri']:
+                            return clean_title
+            except Exception as e:
+                continue
+        
+        return None
+    
+    def _clean_title_text(self, title_text: str) -> str:
+        """Clean job title text from common noise"""
+        if not title_text:
+            return ""
+        
+        # Remove common suffixes and prefixes
+        clean_patterns = [
+            r'\s*\|\s*.*$',  # Remove "| Company Name"
+            r'\s*-\s*.*$',   # Remove "- Company Name"
+            r'\s*@\s*.*$',   # Remove "@ Company"
+            r'^\s*Job:\s*',  # Remove "Job: " prefix
+            r'^\s*Position:\s*',  # Remove "Position: " prefix
+            r'\s*\(\s*\w+\s*\)\s*$',  # Remove location in parentheses at end
+        ]
+        
+        cleaned = title_text
+        for pattern in clean_patterns:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+        
+        return cleaned.strip()
+    
+    def _extract_company_universal(self, soup: BeautifulSoup) -> Dict[str, str]:
+        """Universal company extraction"""
+        company_data = {}
+        
+        # Try multiple strategies for company name and link
+        company_selectors = [
+            # Direct company link
+            'a[href*="/companies/"]',
+            'a[href*="/company/"]',
+            # Company name in common classes
+            '.company-name',
+            '.employer-name',
+            '[class*="company"][class*="name"]',
+            # Links that might be companies (avoid generic links)
+            'a[href*="company"]',
+        ]
+        
+        for selector in company_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    company_name = element.get_text(strip=True)
+                    if company_name and len(company_name) > 1:
+                        company_data['company_name'] = company_name
+                        
+                        # Extract slug from href
+                        href = element.get('href', '')
+                        if href:
+                            # Extract company slug from various URL patterns
+                            for pattern in ['/companies/', '/company/']:
+                                if pattern in href:
+                                    slug = href.split(pattern)[-1].strip('/').split('/')[0]
+                                    if slug:
+                                        company_data['company_slug'] = slug
+                                    break
+                        break
+            except Exception:
+                continue
+        
+        # Fallback: look for company logo alt text
+        if not company_data.get('company_name'):
+            logo_selectors = [
+                'img[alt]:not([alt=""]):not([alt*="logo"]):not([alt*="icon"])',
+                'img[class*="logo"]',
+                'img[class*="company"]'
+            ]
+            
+            for selector in logo_selectors:
+                try:
+                    img = soup.select_one(selector)
+                    if img:
+                        alt_text = img.get('alt', '').strip()
+                        if alt_text and len(alt_text) > 2 and alt_text.lower() not in ['image', 'logo', 'icon', 'photo']:
+                            company_data['company_name'] = alt_text
+                            # Try to get logo URL
+                            logo_src = img.get('src', '')
+                            if logo_src:
+                                company_data['company_logo'] = logo_src
+                            break
+                except Exception:
+                    continue
+        
+        return company_data
+    
+    def _extract_description_universal(self, soup: BeautifulSoup) -> Optional[str]:
+        """Universal description extraction"""
+        description_selectors = [
+            # Strategy 1: Common description classes
+            '.job-description',
+            '.job-desc',
+            '.description',
+            '.vacancy-description',
+            '.job-content',
+            '.position-description',
+            # Strategy 2: Sections with description-like classes
+            'section[class*="description"]',
+            'div[class*="description"]',
+            'div[class*="job-desc"]',
+            # Strategy 3: Content after "Description" or "Təsvir" headings
+            # This will be handled separately
+        ]
+        
+        for selector in description_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    desc_text = element.get_text(separator=' ', strip=True)
+                    if desc_text and len(desc_text) > 50:  # Substantial description
+                        return self._clean_text(desc_text)
+            except Exception:
+                continue
+        
+        # Strategy: Look for text after description headings
+        description_headings = soup.find_all(text=lambda text: text and any(word in text.lower() for word in ['təsvir', 'description', 'about', 'job summary']))
+        
+        for heading_text in description_headings:
+            try:
+                parent = heading_text.parent if hasattr(heading_text, 'parent') else None
+                if parent:
+                    # Look for next sibling or parent's next sibling
+                    next_element = parent.find_next_sibling()
+                    if not next_element:
+                        next_element = parent.parent.find_next_sibling() if parent.parent else None
+                    
+                    if next_element:
+                        desc_text = next_element.get_text(separator=' ', strip=True)
+                        if desc_text and len(desc_text) > 50:
+                            return self._clean_text(desc_text)
+            except Exception:
+                continue
+        
+        # Fallback: Find large text blocks (likely descriptions)
+        all_text_elements = soup.find_all(['div', 'p', 'section'], text=True)
+        for element in all_text_elements:
+            try:
+                text_content = element.get_text(strip=True)
+                if len(text_content) > 100 and len(text_content.split()) > 15:
+                    # Check if this looks like a job description (contains job-related keywords)
+                    job_keywords = ['experience', 'skill', 'requirement', 'responsible', 'duties', 'təcrübə', 'məsul', 'bacarıq']
+                    if any(keyword in text_content.lower() for keyword in job_keywords):
+                        return self._clean_text(text_content)
+            except Exception:
+                continue
+        
+        return None
+    
+    def _extract_location_universal(self, soup: BeautifulSoup) -> Optional[str]:
+        """Universal location extraction"""
+        location_selectors = [
+            '.location',
+            '.job-location',
+            '.position-location',
+            '[class*="location"]',
+            '.city',
+            '.address'
+        ]
+        
+        # Try CSS selectors first
+        for selector in location_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    location_text = element.get_text(strip=True)
+                    if location_text and len(location_text) > 1:
+                        return location_text
+            except Exception:
+                continue
+        
+        # Fallback: Search for location keywords in text
+        location_keywords = ['Azərbaycan', 'Azerbaijan', 'Bakı', 'Baku', 'Gəncə', 'Sumqayıt', 'Mingəçevir']
+        all_text = soup.find_all(text=True)
+        for text in all_text:
+            if any(keyword in str(text) for keyword in location_keywords):
+                # Extract the containing element's text
+                parent = text.parent if hasattr(text, 'parent') else None
+                if parent:
+                    location_text = parent.get_text(strip=True)
+                    if location_text and len(location_text) < 100:  # Not too long
+                        return location_text
+        
+        return None
+    
+    def _extract_job_type_universal(self, soup: BeautifulSoup) -> Optional[str]:
+        """Universal job type extraction"""
+        job_type_selectors = [
+            '.job-type',
+            '.employment-type',
+            '.work-type',
+            '[class*="type"]',
+            '.schedule'
+        ]
+        
+        # Try CSS selectors first
+        for selector in job_type_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    job_type_text = element.get_text(strip=True)
+                    if job_type_text and len(job_type_text) > 1:
+                        return job_type_text
+            except Exception:
+                continue
+        
+        # Fallback: Search for job type keywords
+        job_type_keywords = ['Tam ştat', 'Yarım ştat', 'Müqavilə', 'Full-time', 'Part-time', 'Contract', 'Remote']
+        all_text = soup.find_all(text=lambda text: text and any(keyword in str(text) for keyword in job_type_keywords))
+        
+        for text in all_text:
+            for keyword in job_type_keywords:
+                if keyword in str(text):
+                    return str(text).strip()
+        
+        return None
+    
+    def _extract_experience_universal(self, soup: BeautifulSoup) -> Optional[str]:
+        """Universal experience level extraction"""
+        experience_selectors = [
+            '.experience',
+            '.experience-level',
+            '.seniority',
+            '[class*="experience"]',
+            '.level'
+        ]
+        
+        # Try CSS selectors first
+        for selector in experience_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    exp_text = element.get_text(strip=True)
+                    if exp_text and len(exp_text) > 1:
+                        return exp_text
+            except Exception:
+                continue
+        
+        # Fallback: Search for experience patterns
+        experience_patterns = [
+            r'\d+[-\s]*il',  # "3 il", "5-il"
+            r'\d+[-\s]*year',  # "3 years"
+            r'\d+\+[-\s]*year',  # "3+ years" 
+            r'junior|senior|middle|lead|principal',  # Experience levels
+            r'entry[-\s]*level|mid[-\s]*level|senior[-\s]*level'
+        ]
+        
+        all_text = soup.get_text()
+        for pattern in experience_patterns:
+            matches = re.findall(pattern, all_text, re.IGNORECASE)
+            if matches:
+                return matches[0].strip()
+        
+        return None
+    
+    def _extract_requirements_universal(self, soup: BeautifulSoup) -> Optional[str]:
+        """Universal requirements extraction"""
+        requirements_selectors = [
+            '.requirements',
+            '.job-requirements', 
+            '.qualifications',
+            '[class*="requirement"]',
+            '[class*="qualification"]'
+        ]
+        
+        # Try CSS selectors first
+        for selector in requirements_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    req_text = element.get_text(separator=' ', strip=True)
+                    if req_text and len(req_text) > 50:
+                        return self._clean_text(req_text)
+            except Exception:
+                continue
+        
+        # Strategy: Look for text after requirements headings
+        requirement_headings = soup.find_all(text=lambda text: text and any(word in text.lower() for word in ['tələblər', 'requirements', 'qualifications', 'skills needed']))
+        
+        for heading_text in requirement_headings:
+            try:
+                parent = heading_text.parent if hasattr(heading_text, 'parent') else None
+                if parent:
+                    next_element = parent.find_next_sibling()
+                    if not next_element:
+                        next_element = parent.parent.find_next_sibling() if parent.parent else None
+                    
+                    if next_element:
+                        req_text = next_element.get_text(separator=' ', strip=True)
+                        if req_text and len(req_text) > 50:
+                            return self._clean_text(req_text)
+            except Exception:
+                continue
+        
+        return None
+    
+    def _extract_category_universal(self, soup: BeautifulSoup) -> Optional[str]:
+        """Universal category extraction"""
+        category_selectors = [
+            '.category',
+            '.job-category',
+            '.department',
+            '.field',
+            '[class*="category"]',
+            '.tag',
+            '.badge'
+        ]
+        
+        # Try CSS selectors first
+        for selector in category_selectors:
+            try:
+                elements = soup.select(selector)
+                for element in elements:
+                    category_text = element.get_text(strip=True)
+                    if category_text and len(category_text) > 2 and len(category_text) < 100:
+                        return category_text
+            except Exception:
+                continue
+        
+        # Fallback: Look for category near "Kateqoriya" text
+        category_headings = soup.find_all(text=lambda text: text and any(word in text.lower() for word in ['kateqoriya', 'category', 'department']))
+        
+        for heading_text in category_headings:
+            try:
+                parent = heading_text.parent if hasattr(heading_text, 'parent') else None
+                if parent:
+                    next_element = parent.find_next_sibling()
+                    if next_element:
+                        category_span = next_element.find(['span', 'div', 'p'])
+                        if category_span:
+                            category_text = category_span.get_text(strip=True)
+                            if category_text and len(category_text) > 2:
+                                return category_text
+            except Exception:
+                continue
+        
+        return None
+    
+    def _extract_apply_url_universal(self, soup: BeautifulSoup, job_url: str) -> Optional[str]:
+        """Universal apply URL extraction"""
+        apply_selectors = [
+            'a[href*="apply"]',
+            'a[class*="apply"]',
+            '.apply-button',
+            '.apply-link',
+            'button[class*="apply"]'
+        ]
+        
+        # Try CSS selectors first
+        for selector in apply_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    apply_url = element.get('href', '')
+                    if apply_url:
+                        # Make sure URL is absolute
+                        if apply_url.startswith('/'):
+                            apply_url = urljoin(job_url, apply_url)
+                        return apply_url
+            except Exception:
+                continue
+        
+        # Fallback: Look for links with "apply" text
+        apply_links = soup.find_all('a', text=lambda text: text and any(word in text.lower() for word in ['müraciət', 'apply', 'başvur']))
+        
+        for link in apply_links:
+            apply_url = link.get('href', '')
+            if apply_url:
+                if apply_url.startswith('/'):
+                    apply_url = urljoin(job_url, apply_url)
+                return apply_url
+        
+        return None
+    
     def _extract_job_details(self, soup: BeautifulSoup, job_url: str) -> Dict:
-        """Extract job details from the parsed HTML"""
+        """Extract job details from the parsed HTML using universal selectors"""
         job_data = {'job_url': job_url}
         
         try:
-            # Extract job title - try multiple selectors
-            title_element = soup.find('h1')
-            if not title_element:
-                title_element = soup.find('h2')
-            if not title_element:
-                title_element = soup.find('title')
+            # UNIVERSAL TITLE EXTRACTION
+            title_text = self._extract_title_universal(soup)
+            if title_text:
+                job_data['title'] = title_text
             
-            if title_element:
-                title_text = title_element.get_text(strip=True)
-                if title_text and title_text != 'Unknown' and len(title_text) > 2:
-                    job_data['title'] = title_text
+            # UNIVERSAL COMPANY EXTRACTION
+            company_data = self._extract_company_universal(soup)
+            job_data.update(company_data)
             
-            # Ensure we always have a title, use job URL as fallback
-            if 'title' not in job_data or not job_data['title']:
-                job_data['title'] = f"Job from {job_url.split('/')[-1]}"
+            # UNIVERSAL DESCRIPTION EXTRACTION  
+            description = self._extract_description_universal(soup)
+            if description:
+                job_data['description'] = description
             
-            # Extract company information
-            company_link = soup.find('a', href=lambda href: href and '/companies/' in href)
-            if company_link:
-                job_data['company_name'] = company_link.get_text(strip=True)
-                # Extract company slug from URL
-                company_href = company_link.get('href', '')
-                if '/companies/' in company_href:
-                    job_data['company_slug'] = company_href.split('/companies/')[-1].strip('/')
+            # UNIVERSAL LOCATION EXTRACTION
+            location = self._extract_location_universal(soup)
+            if location:
+                job_data['location'] = location
             
-            # Fallback: Extract company name from image alt text
-            if not job_data.get('company_name'):
-                logo_imgs = soup.find_all('img', alt=True)
-                for img in logo_imgs:
-                    alt_text = img.get('alt', '').strip()
-                    if alt_text and alt_text != 'logo' and len(alt_text) > 2:
-                        # Skip generic alt texts
-                        if alt_text.lower() not in ['image', 'logo', 'icon', 'photo']:
-                            job_data['company_name'] = alt_text
-                            break
+            # UNIVERSAL JOB TYPE EXTRACTION
+            job_type = self._extract_job_type_universal(soup)
+            if job_type:
+                job_data['job_type'] = job_type
             
-            # Extract company logo
-            logo_img = soup.find('img', alt=True)
-            if logo_img:
-                logo_src = logo_img.get('src', '')
-                if logo_src and ('logo' in logo_src.lower() or 's3' in logo_src or 'company' in logo_src.lower()):
-                    job_data['company_logo'] = logo_src
+            # UNIVERSAL EXPERIENCE LEVEL EXTRACTION
+            experience_level = self._extract_experience_universal(soup)
+            if experience_level:
+                job_data['experience_level'] = experience_level
             
-            # Extract location
-            location_elements = soup.find_all(text=lambda text: text and ('Azərbaycan' in text or 'Azerbaijan' in text))
-            for element in location_elements:
-                if 'Azərbaycan' in element or 'Azerbaijan' in element:
-                    job_data['location'] = element.strip()
-                    break
+            # UNIVERSAL REQUIREMENTS EXTRACTION
+            requirements = self._extract_requirements_universal(soup)
+            if requirements:
+                job_data['requirements'] = requirements
             
-            # Extract job type (full-time, part-time, etc.)
-            job_type_elements = soup.find_all(text=lambda text: text and ('Tam ştat' in text or 'Yarım ştat' in text or 'Müqavilə' in text))
-            for element in job_type_elements:
-                if any(job_type in element for job_type in ['Tam ştat', 'Yarım ştat', 'Müqavilə']):
-                    job_data['job_type'] = element.strip()
-                    break
+            # UNIVERSAL CATEGORY EXTRACTION
+            category = self._extract_category_universal(soup)
+            if category:
+                job_data['category'] = category
             
-            # Extract experience level
-            exp_elements = soup.find_all(text=lambda text: text and re.search(r'\d+[-\s]*il', text))
-            for element in exp_elements:
-                if re.search(r'\d+[-\s]*il', element):
-                    job_data['experience_level'] = element.strip()
-                    break
+            # UNIVERSAL APPLY URL EXTRACTION
+            apply_url = self._extract_apply_url_universal(soup, job_url)
+            if apply_url:
+                job_data['apply_url'] = apply_url
             
-            # Extract posted date
+            # Extract posted date (keep original logic as it works)
             date_pattern = r'\d{2}-\d{2}-\d{4}'
             date_elements = soup.find_all(text=lambda text: text and re.search(date_pattern, text))
             for element in date_elements:
@@ -176,24 +570,21 @@ class JobPageParser:
                     except ValueError:
                         continue
             
-            # Extract deadline
+            # Keep existing date and view count extraction (they work fine)
+            # Extract deadline (keep original logic)
             deadline_elements = soup.find_all(text=lambda text: text and ('Son tarix' in text))
             if deadline_elements:
-                # Look for date near deadline text
                 for elem in deadline_elements:
-                    # Find the parent paragraph/div
                     parent = elem.parent if hasattr(elem, 'parent') else None
                     if parent:
-                        # Look for the next sibling or nearby element with date
                         next_elem = parent.find_next_sibling()
                         if next_elem:
                             deadline_text = next_elem.get_text(strip=True)
-                            # Try different date formats
                             date_patterns = [
-                                r'(\w+ \d{1,2}, \d{4})',  # "August 31, 2025"
-                                r'(\d{1,2} \w+ \d{4})',   # "31 August 2025"
-                                r'(\d{1,2}-\d{1,2}-\d{4})', # "31-08-2025"
-                                r'(\d{1,2}/\d{1,2}/\d{4})'  # "31/08/2025"
+                                r'(\w+ \d{1,2}, \d{4})',
+                                r'(\d{1,2} \w+ \d{4})',
+                                r'(\d{1,2}-\d{1,2}-\d{4})',
+                                r'(\d{1,2}/\d{1,2}/\d{4})'
                             ]
                             
                             for pattern in date_patterns:
@@ -201,7 +592,6 @@ class JobPageParser:
                                 if date_match:
                                     try:
                                         date_str = date_match.group(1)
-                                        # Try different parsing formats
                                         for fmt in ['%B %d, %Y', '%d %B %Y', '%d-%m-%Y', '%d/%m/%Y']:
                                             try:
                                                 job_data['deadline'] = datetime.strptime(date_str, fmt)
@@ -215,93 +605,19 @@ class JobPageParser:
                             if job_data.get('deadline'):
                                 break
             
-            # Extract view count
+            # Extract view count (keep original logic)
             view_elements = soup.find_all(text=lambda text: text and text.strip().isdigit())
             for element in view_elements:
-                # Look for elements that might be view counts (numbers in specific contexts)
                 parent = element.parent if hasattr(element, 'parent') else None
                 if parent and parent.name in ['p', 'span', 'div']:
                     siblings = parent.find_previous_siblings() + parent.find_next_siblings()
                     for sibling in siblings:
                         if sibling and hasattr(sibling, 'name') and sibling.name == 'svg':
-                            # If there's an SVG nearby (likely an eye icon), this could be view count
                             try:
                                 job_data['view_count'] = int(element.strip())
                                 break
                             except ValueError:
                                 continue
-            
-            # Extract description
-            description_sections = soup.find_all(['div', 'section'], class_=lambda c: c and 'description' in c.lower())
-            if not description_sections:
-                # Look for sections with "Təsvir" (Description) heading
-                desc_headings = soup.find_all(text=lambda text: text and 'Təsvir' in text)
-                for heading in desc_headings:
-                    parent = heading.parent if hasattr(heading, 'parent') else None
-                    if parent:
-                        next_sibling = parent.find_next_sibling()
-                        if next_sibling:
-                            description_sections = [next_sibling]
-                            break
-            
-            if description_sections:
-                description_html = description_sections[0]
-                # Clean up the description text
-                description_text = description_html.get_text(separator=' ', strip=True)
-                job_data['description'] = self._clean_text(description_text)
-            
-            # Extract requirements
-            requirements_sections = []
-            req_headings = soup.find_all(text=lambda text: text and 'Tələblər' in text)
-            for heading in req_headings:
-                parent = heading.parent if hasattr(heading, 'parent') else None
-                if parent:
-                    next_sibling = parent.find_next_sibling()
-                    if next_sibling:
-                        requirements_sections = [next_sibling]
-                        break
-            
-            if requirements_sections:
-                requirements_html = requirements_sections[0]
-                requirements_text = requirements_html.get_text(separator=' ', strip=True)
-                job_data['requirements'] = self._clean_text(requirements_text)
-            
-            # Extract category
-            # Look for category in spans with specific styling
-            category_elements = soup.find_all('span', class_=lambda c: c and any(word in c.lower() for word in ['inline-block', 'rounded-full', 'bg-', 'text-accent']))
-            for element in category_elements:
-                category_text = element.get_text(strip=True)
-                if category_text and len(category_text) > 5:  # Filter out very short text
-                    job_data['category'] = category_text
-                    break
-                    
-            # Fallback: Look for category near "Kateqoriya" text
-            if not job_data.get('category'):
-                category_headings = soup.find_all(text=lambda text: text and 'Kateqoriya' in text)
-                for heading in category_headings:
-                    parent = heading.parent if hasattr(heading, 'parent') else None
-                    if parent:
-                        next_sibling = parent.find_next_sibling()
-                        if next_sibling:
-                            category_span = next_sibling.find('span')
-                            if category_span:
-                                category_text = category_span.get_text(strip=True)
-                                if category_text and len(category_text) > 5:
-                                    job_data['category'] = category_text
-                                    break
-            
-            # Extract apply URL
-            apply_links = soup.find_all('a', text=lambda text: text and 'Müraciət' in text)
-            if not apply_links:
-                apply_links = soup.find_all('a', href=lambda href: href and 'apply' in href)
-            
-            if apply_links:
-                apply_url = apply_links[0].get('href', '')
-                if apply_url:
-                    # Make sure URL is absolute
-                    if apply_url.startswith('/'):
-                        apply_url = urljoin(job_url, apply_url)
-                    job_data['apply_url'] = apply_url
             
             # Extract job slug from URL
             parsed_url = urlparse(job_url)
@@ -309,7 +625,19 @@ class JobPageParser:
             if len(path_parts) >= 2:
                 job_data['slug'] = path_parts[-1]
             
-            logger.info(f"Successfully extracted details for: {job_data.get('title', 'Unknown')}")
+            # Enhanced logging with extraction stats
+            extracted_fields = []
+            for field in ['title', 'company_name', 'description', 'requirements', 'category', 'job_type', 'experience_level', 'apply_url']:
+                if job_data.get(field) and str(job_data.get(field)).strip():
+                    extracted_fields.append(field)
+            
+            job_title = job_data.get('title', 'Unknown Job')
+            if len(extracted_fields) >= 5:
+                logger.info(f"✅ Successfully extracted {job_title} ({len(extracted_fields)} fields)")
+            elif len(extracted_fields) >= 3:
+                logger.info(f"⚠️  Partially extracted {job_title} ({len(extracted_fields)} fields)")
+            else:
+                logger.warning(f"❌ Minimal extraction {job_title} ({len(extracted_fields)} fields)")
             
         except Exception as e:
             logger.error(f"Error extracting job details: {e}")
@@ -321,10 +649,13 @@ class JobPageParser:
         if not text:
             return ""
         
+        # Remove null characters that cause database errors
+        text = text.replace('\x00', '')
+        
         # Remove excessive whitespace
         text = re.sub(r'\s+', ' ', text)
         
-        # Remove non-printable characters
+        # Remove non-printable characters except common Unicode
         text = re.sub(r'[^\x20-\x7E\u00A0-\uFFFF]', '', text)
         
         return text.strip()
